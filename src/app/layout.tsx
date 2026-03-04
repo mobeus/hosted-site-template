@@ -1,13 +1,12 @@
 import type { Metadata } from 'next';
-import Script from 'next/script';
 import './globals.css';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
+import { VoiceSessionProvider } from '@/components/voice/VoiceSessionProvider';
+import { VoiceOverlay } from '@/components/voice/VoiceOverlay';
+import { AgentComponentSlot } from '@/components/voice/AgentComponentSlot';
 
 const agentName = process.env.NEXT_PUBLIC_AGENT_NAME || 'AI Assistant';
-const widgetHost = process.env.NEXT_PUBLIC_WIDGET_HOST || 'https://app.mobeus.ai';
-const widgetApiKey = process.env.NEXT_PUBLIC_WIDGET_API_KEY || '';
-const widgetPosition = process.env.NEXT_PUBLIC_WIDGET_POSITION || 'bottom-right';
 
 export const metadata: Metadata = {
   title: agentName,
@@ -22,17 +21,13 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="min-h-screen bg-white text-gray-900 antialiased">
-        <Header />
-        <main>{children}</main>
-        <Footer />
-        {widgetApiKey && (
-          <Script
-            src={`${widgetHost}/embed.js`}
-            data-api-key={widgetApiKey}
-            data-position={widgetPosition}
-            strategy="afterInteractive"
-          />
-        )}
+        <VoiceSessionProvider>
+          <Header />
+          <main>{children}</main>
+          <AgentComponentSlot />
+          <Footer />
+          <VoiceOverlay />
+        </VoiceSessionProvider>
       </body>
     </html>
   );

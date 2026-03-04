@@ -1,6 +1,7 @@
+import { VoiceConnectButton } from '@/components/voice/VoiceConnectButton';
+
 const agentName = process.env.NEXT_PUBLIC_AGENT_NAME || 'AI Assistant';
 const greeting = process.env.NEXT_PUBLIC_WIDGET_GREETING || '';
-const accentColor = process.env.NEXT_PUBLIC_WIDGET_COLOR || '#0f172a';
 
 export default function Home() {
   return (
@@ -16,18 +17,12 @@ export default function Home() {
             {greeting || `Welcome! I'm here to help you with any questions you might have. Click the chat button to start a conversation.`}
           </p>
           <div className="mt-10 flex items-center justify-center gap-x-6">
+            <VoiceConnectButton size="lg" />
             <a
               href="#features"
-              className="rounded-lg px-6 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:opacity-90"
-              style={{ backgroundColor: accentColor }}
-            >
-              Learn More
-            </a>
-            <a
-              href="/about"
               className="text-sm font-semibold leading-6 text-gray-900 hover:text-gray-700"
             >
-              About Us <span aria-hidden="true">&rarr;</span>
+              Learn More <span aria-hidden="true">&rarr;</span>
             </a>
           </div>
         </div>
@@ -69,7 +64,7 @@ export default function Home() {
             Ready to get started?
           </h2>
           <p className="mt-4 text-gray-600">
-            Click the chat button in the corner to start a voice conversation with our AI assistant.
+            Click the button above or use the voice overlay in the corner to start a conversation with our AI assistant.
           </p>
         </div>
       </section>
