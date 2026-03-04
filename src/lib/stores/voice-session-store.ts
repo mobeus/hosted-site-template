@@ -197,12 +197,13 @@ export const useVoiceSessionStore = create<VoiceSessionState>((set, get) => ({
 
       const sessionData = await response.json();
 
+      // API response: { agent: { name }, defaults: { avatarEnabled, avatarVisible, micMuted, volumeMuted, avatarAvailable }, ... }
       const defaults = sessionData.defaults || {};
-      const avatarAvailable = Boolean(sessionData.avatarAvailable);
+      const avatarAvailable = Boolean(defaults.avatarAvailable);
       const rawAvatarEnabled =
         typeof defaults.avatarEnabled === 'boolean'
           ? defaults.avatarEnabled
-          : Boolean(sessionData.avatarEnabled);
+          : false;
       const defaultAvatarEnabled = avatarAvailable ? rawAvatarEnabled : false;
       const defaultAvatarVisible =
         avatarAvailable && typeof defaults.avatarVisible === 'boolean'
@@ -213,6 +214,8 @@ export const useVoiceSessionStore = create<VoiceSessionState>((set, get) => ({
       const defaultVolumeMuted =
         typeof defaults.volumeMuted === 'boolean' ? defaults.volumeMuted : false;
 
+      const resolvedAgentName = sessionData.agent?.name || 'AI Assistant';
+
       set({
         avatarEnabled: defaultAvatarEnabled,
         avatarVisible: defaultAvatarVisible,
@@ -220,8 +223,8 @@ export const useVoiceSessionStore = create<VoiceSessionState>((set, get) => ({
         avatarTogglePending: false,
         isMuted: defaultMicMuted,
         isVolumeMuted: defaultVolumeMuted,
-        agentName: sessionData.agentName || 'AI Assistant',
-        currentAgentName: sessionData.agentName || 'AI Assistant',
+        agentName: resolvedAgentName,
+        currentAgentName: resolvedAgentName,
       });
 
       // Store templates for rendering
@@ -538,7 +541,9 @@ function setupRoomEventListeners(
       } else if (track.kind === Track.Kind.Audio) {
         const audioElement = track.attach() as HTMLAudioElement;
         audioElement.id = `audio-avatar-${participant.identity}`;
+        audioElement.autoplay = true;
         document.body.appendChild(audioElement);
+        audioElement.play().catch((e) => console.warn('Avatar audio autoplay blocked:', e));
         set({ avatarAudioTrack: track, avatarAudioElement: audioElement });
         applyAudioRouting(get);
       }
@@ -546,7 +551,9 @@ function setupRoomEventListeners(
       if (participant.kind === ParticipantKind.AGENT) {
         const audioElement = track.attach() as HTMLAudioElement;
         audioElement.id = `audio-agent-${participant.identity}`;
+        audioElement.autoplay = true;
         document.body.appendChild(audioElement);
+        audioElement.play().catch((e) => console.warn('Agent audio autoplay blocked:', e));
         set({ agentAudioTrack: track, agentAudioElement: audioElement });
         applyAudioRouting(get);
       }

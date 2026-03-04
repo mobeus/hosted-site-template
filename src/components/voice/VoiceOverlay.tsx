@@ -16,7 +16,7 @@ import {
   Loader2,
   Send,
 } from 'lucide-react';
-import { useVoiceSessionStore } from '@/lib/stores/voice-session-store';
+import { useVoiceSessionStore, type SessionState } from '@/lib/stores/voice-session-store';
 
 export function VoiceOverlay() {
   const {
@@ -38,6 +38,7 @@ export function VoiceOverlay() {
     toggleAvatarVisible,
     toggleAvatarHard,
     sendTextMessage,
+    connect,
     disconnect,
     setOverlayExpanded,
   } = useVoiceSessionStore();
@@ -93,7 +94,41 @@ export function VoiceOverlay() {
     }
   }, [transcripts]);
 
-  if (!isOverlayVisible || sessionState === 'idle') {
+  // When idle, show a floating connect bubble in the bottom-right corner
+  if (sessionState === 'idle') {
+    return (
+      <motion.div
+        initial={{ scale: 0, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        className="fixed bottom-6 right-6 z-50"
+      >
+        <button
+          onClick={connect}
+          className="flex items-center justify-center w-14 h-14 bg-blue-600 rounded-full shadow-lg hover:bg-blue-700 transition-colors hover:scale-105"
+          title="Start voice chat"
+        >
+          <Mic className="w-6 h-6 text-white" />
+        </button>
+      </motion.div>
+    );
+  }
+
+  // Show connecting spinner
+  if (sessionState === 'connecting') {
+    return (
+      <motion.div
+        initial={{ scale: 0, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        className="fixed bottom-6 right-6 z-50"
+      >
+        <div className="flex items-center justify-center w-14 h-14 bg-blue-600 rounded-full shadow-lg">
+          <Loader2 className="w-6 h-6 text-white animate-spin" />
+        </div>
+      </motion.div>
+    );
+  }
+
+  if (!isOverlayVisible) {
     return null;
   }
 
@@ -107,7 +142,7 @@ export function VoiceOverlay() {
   };
 
   const getStatusColor = () => {
-    switch (sessionState) {
+    switch (sessionState as SessionState) {
       case 'connected': return 'bg-green-500';
       case 'connecting': return 'bg-yellow-500';
       case 'error': return 'bg-red-500';
@@ -116,7 +151,7 @@ export function VoiceOverlay() {
   };
 
   const getLiveKitLabel = () => {
-    switch (sessionState) {
+    switch (sessionState as SessionState) {
       case 'connected': return 'LiveKit: Connected';
       case 'connecting': return 'LiveKit: Connecting...';
       case 'disconnecting': return 'LiveKit: Disconnecting...';
