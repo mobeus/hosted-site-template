@@ -1,14 +1,9 @@
 'use client';
 
-import { ChangeEvent, FormEvent, useMemo, useState } from 'react';
+import { Suspense, useMemo } from 'react';
 import { ComponentTemplate } from '@/types';
 import { useVoiceSessionStore } from '@/lib/stores/voice-session-store';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
+import { getComponent, hasComponent } from '@/components/tele-components';
 
 interface DynamicComponentRendererProps {
   template: ComponentTemplate;
@@ -29,7 +24,7 @@ function getMissingRequiredFields(
   schema: Record<string, any> | undefined,
   data: Record<string, any>
 ) {
-  const required = Array.isArray(schema?.required) ? schema?.required : [];
+  const required = Array.isArray(schema?.required) ? schema.required : [];
   return required.filter((field: string) => data[field] === undefined || data[field] === '');
 }
 
@@ -37,246 +32,62 @@ function getAccentColor(uiConfig: Record<string, any> | undefined) {
   return uiConfig?.accentColor || '#2563eb';
 }
 
-function renderProductCard(template: ComponentTemplate, data: Record<string, any>) {
-  const uiConfig = template.uiConfig || {};
-  const accentColor = getAccentColor(uiConfig);
+/**
+ * Generic fallback renderer for components not in the registry.
+ * Renders data as structured key-value pairs so *something* always shows up.
+ */
+function GenericFallback({ template, data }: { template: ComponentTemplate; data: Record<string, any> }) {
+  const displayEntries = Object.entries(data).filter(
+    ([key]) => !key.startsWith('_') && key !== 'id'
+  );
 
-  const tags: string[] = Array.isArray(data.tags) ? data.tags : [];
-  const rating = typeof data.rating === 'number' ? data.rating : null;
+  if (displayEntries.length === 0) return null;
 
   return (
-    <Card className="w-full border" style={{ borderColor: accentColor }}>
-      <CardHeader className="space-y-2">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <CardTitle className="text-lg">{data.name}</CardTitle>
-            {data.badge && (
-              <Badge style={{ backgroundColor: accentColor }} className="text-white">
-                {data.badge}
-              </Badge>
-            )}
+    <div className="w-full rounded-lg border p-4 space-y-2">
+      <div className="text-xs font-medium text-muted-foreground">{template.name || template.type}</div>
+      <div className="space-y-1.5">
+        {displayEntries.map(([key, value]) => (
+          <div key={key} className="text-sm">
+            <span className="font-medium capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}: </span>
+            <span className="text-muted-foreground">
+              {value === null || value === undefined
+                ? '—'
+                : Array.isArray(value)
+                  ? value
+                      .map((item) =>
+                        typeof item === 'object' && item !== null
+                          ? Object.entries(item)
+                              .map(([k, v]) => `${k}: ${v}`)
+                              .join(', ')
+                          : String(item)
+                      )
+                      .join(' | ')
+                  : typeof value === 'object'
+                    ? Object.entries(value)
+                        .map(([k, v]) => `${k}: ${v}`)
+                        .join(', ')
+                    : String(value)}
+            </span>
           </div>
-          <div className="text-right">
-            <div className="text-xl font-semibold" style={{ color: accentColor }}>
-              {data.price}
-            </div>
-            {data.currency && (
-              <div className="text-xs text-muted-foreground">{data.currency}</div>
-            )}
-          </div>
-        </div>
-        {data.description && (
-          <p className="text-sm text-muted-foreground">{data.description}</p>
-        )}
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {data.imageUrl && (
-          <div className="w-full overflow-hidden rounded-md border">
-            <img
-              src={data.imageUrl}
-              alt={data.name || 'Product image'}
-              className="h-40 w-full object-cover"
-            />
-          </div>
-        )}
-
-        {uiConfig.showRating && rating !== null && (
-          <div className="flex items-center gap-2 text-sm">
-            <span className="font-medium">{rating.toFixed(1)} ★</span>
-            {typeof data.reviewCount === 'number' && (
-              <span className="text-muted-foreground">({data.reviewCount} reviews)</span>
-            )}
-          </div>
-        )}
-
-        {tags.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {tags.map((tag) => (
-              <Badge key={tag} variant="outline">
-                {tag}
-              </Badge>
-            ))}
-          </div>
-        )}
-
-        {data.ctaUrl && (
-          <Button asChild style={{ backgroundColor: accentColor }}>
-            <a href={data.ctaUrl} target="_blank" rel="noopener noreferrer">
-              {data.ctaLabel || 'Learn more'}
-            </a>
-          </Button>
-        )}
-      </CardContent>
-    </Card>
+        ))}
+      </div>
+    </div>
   );
 }
 
-function renderImageGallery(template: ComponentTemplate, data: Record<string, any>) {
-  const uiConfig = template.uiConfig || {};
-  const layout = data.layout === 'grid' ? 'grid' : 'carousel';
-  const columns = typeof data.columns === 'number' ? data.columns : 3;
-  const images: Array<Record<string, any>> = Array.isArray(data.images) ? data.images : [];
-
-  return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle className="text-lg">{data.title}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        {layout === 'grid' ? (
-          <div
-            className="grid gap-3"
-            style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
-          >
-            {images.map((image, index) => (
-              <div key={`${image.id || image.url || 'image'}-${index}`} className="space-y-2">
-                <img
-                  src={image.url}
-                  alt={image.alt || 'Gallery image'}
-                  className="h-32 w-full rounded-md object-cover"
-                />
-                {uiConfig.showCaptions && image.caption && (
-                  <p className="text-xs text-muted-foreground">{image.caption}</p>
-                )}
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="flex gap-3 overflow-x-auto pb-2">
-            {images.map((image, index) => (
-              <div key={`${image.id || image.url || 'image'}-${index}`} className="min-w-[220px] space-y-2">
-                <img
-                  src={image.url}
-                  alt={image.alt || 'Gallery image'}
-                  className="h-32 w-full rounded-md object-cover"
-                />
-                {uiConfig.showCaptions && image.caption && (
-                  <p className="text-xs text-muted-foreground">{image.caption}</p>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function FormRenderer({ template, data }: { template: ComponentTemplate; data: Record<string, any> }) {
-  const submitForm = useVoiceSessionStore((state) => state.submitForm);
-  const uiConfig = template.uiConfig || {};
-  const accentColor = getAccentColor(uiConfig);
-
-  const [values, setValues] = useState<Record<string, any>>(() => {
-    const initial: Record<string, any> = {};
-    if (Array.isArray(data.fields)) {
-      data.fields.forEach((field: any) => {
-        if (field.defaultValue !== undefined) {
-          initial[field.name] = field.defaultValue;
-        } else if (field.type === 'checkbox') {
-          initial[field.name] = false;
-        } else {
-          initial[field.name] = '';
-        }
-      });
-    }
-    return initial;
-  });
-
-  const [submitted, setSubmitted] = useState(false);
-
-  const handleChange = (name: string, value: any) => {
-    setValues((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = async (event: FormEvent) => {
-    event.preventDefault();
-    await submitForm(template.id, data.id || template.id, values);
-    setSubmitted(true);
-  };
-
-  return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle className="text-lg">{data.title}</CardTitle>
-        {data.description && (
-          <p className="text-sm text-muted-foreground">{data.description}</p>
-        )}
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {Array.isArray(data.fields) &&
-            data.fields.map((field: any, index: number) => {
-              const id = `${template.id}-${field.name}`;
-              const commonProps = {
-                id,
-                name: field.name,
-                required: field.required,
-                placeholder: field.placeholder,
-                value: values[field.name] ?? '',
-                onChange: (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-                  handleChange(field.name, event.target.value),
-              };
-
-              return (
-                <div key={`${field.name}-${index}`} className="space-y-1">
-                  <label htmlFor={id} className="text-sm font-medium">
-                    {field.label}
-                    {field.required && <span className="text-red-500"> *</span>}
-                  </label>
-                  {field.type === 'textarea' ? (
-                    <Textarea {...commonProps} rows={3} />
-                  ) : field.type === 'select' ? (
-                    <select
-                      id={id}
-                      name={field.name}
-                      required={field.required}
-                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                      value={values[field.name] ?? ''}
-                      onChange={(event) => handleChange(field.name, event.target.value)}
-                    >
-                      <option value="">Select...</option>
-                      {(field.options || []).map((option: string) => (
-                        <option key={option} value={option}>
-                          {option}
-                        </option>
-                      ))}
-                    </select>
-                  ) : field.type === 'checkbox' ? (
-                    <div className="flex items-center gap-2">
-                      <input
-                        id={id}
-                        type="checkbox"
-                        checked={Boolean(values[field.name])}
-                        onChange={(event) => handleChange(field.name, event.target.checked)}
-                      />
-                      <span className="text-sm text-muted-foreground">{field.helpText}</span>
-                    </div>
-                  ) : (
-                    <Input {...commonProps} type={field.type || 'text'} />
-                  )}
-                  {field.helpText && field.type !== 'checkbox' && (
-                    <p className="text-xs text-muted-foreground">{field.helpText}</p>
-                  )}
-                </div>
-              );
-            })}
-
-          <Button
-            type="submit"
-            disabled={submitted}
-            style={{ backgroundColor: accentColor }}
-            className={cn(submitted && 'opacity-60')}
-          >
-            {submitted ? 'Submitted' : data.submitLabel || 'Submit'}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
-  );
-}
-
+/**
+ * DynamicComponentRenderer — Resolves template.type to a tele-component via the registry.
+ *
+ * Resolution order:
+ * 1. Look up template.type in the component registry (tele-components/component-registry.ts)
+ * 2. Fall back to GenericFallback for unregistered types
+ *
+ * The registry uses lazy imports, so components are code-split automatically.
+ */
 export function DynamicComponentRenderer({ template, data }: DynamicComponentRendererProps) {
+  const submitForm = useVoiceSessionStore((state) => state.submitForm);
+
   const mergedData = useMemo(() => {
     return mergeTemplateData(
       template.defaultData as Record<string, unknown>,
@@ -291,21 +102,35 @@ export function DynamicComponentRenderer({ template, data }: DynamicComponentRen
     mergedData as Record<string, any>
   );
 
+  const accentColor = getAccentColor(template.uiConfig as Record<string, any>);
+
+  // Inject metadata for Form component (needs templateId for submission)
+  const dataWithMeta = {
+    ...mergedData,
+    __templateId: template.id,
+  } as Record<string, any>;
+
+  // onAction callback — sends action phrases back to the voice agent
+  const handleAction = (actionPhrase: string) => {
+    // Submit as a form action so the agent receives the interaction
+    submitForm(template.id, template.id, { action: actionPhrase });
+  };
+
+  // Look up in registry
+  const Component = getComponent(template.type);
+
   let rendered = null;
 
-  if (template.type === 'ProductCard') {
-    rendered = renderProductCard(template, mergedData as Record<string, any>);
+  if (Component) {
+    rendered = (
+      <Suspense fallback={<div className="h-24 w-full animate-pulse rounded-lg bg-gray-100" />}>
+        <Component data={dataWithMeta} accentColor={accentColor} onAction={handleAction} />
+      </Suspense>
+    );
+  } else {
+    // Unregistered type — use generic fallback
+    rendered = <GenericFallback template={template} data={dataWithMeta} />;
   }
-
-  if (template.type === 'Form') {
-    rendered = <FormRenderer template={template} data={mergedData as Record<string, any>} />;
-  }
-
-  if (template.type === 'ImageGallery') {
-    rendered = renderImageGallery(template, mergedData as Record<string, any>);
-  }
-
-  if (!rendered) return null;
 
   return (
     <div className="space-y-2">
